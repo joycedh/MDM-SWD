@@ -8,7 +8,7 @@ import os
 import numpy as np
 import torch
 from utils.parser_util import generate_args
-from utils.model_util import create_model_and_diffusion, load_model_wo_clip
+from utils.model_util import create_model_and_diffusion, load_model_wo_clip, load_split_mdm
 from utils import dist_util
 from model.cfg_sampler import ClassifierFreeSampleModel
 from data_loaders.get_data import get_dataset_loader
@@ -25,7 +25,7 @@ def main():
     out_path = args.output_dir
     name = os.path.basename(os.path.dirname(args.model_path))
     niter = os.path.basename(args.model_path).replace('model', '').replace('.pt', '')
-    max_frames = 196 if args.dataset in ['kit', 'humanml'] else 60
+    max_frames = 196 if args.dataset in ['kit', 'humanml', 'swdance'] else 60
     fps = 12.5 if args.dataset == 'kit' else 20
     n_frames = min(max_frames, int(args.motion_length*fps))
     is_using_data = not any([args.input_text, args.text_prompt, args.action_file, args.action_name])
@@ -75,7 +75,10 @@ def main():
 
     print(f"Loading checkpoints from [{args.model_path}]...")
     state_dict = torch.load(args.model_path, map_location='cpu')
-    load_model_wo_clip(model, state_dict)
+    if args.freeze_layers and args.freeze_layers > 0:
+        load_split_mdm(model, state_dict, args.freeze_layers)
+    else:
+        load_model_wo_clip(model, state_dict)
 
     if args.guidance_param != 1:
         model = ClassifierFreeSampleModel(model)   # wrapping model with the classifier-free sampler
@@ -155,21 +158,25 @@ def main():
     all_text = all_text[:total_num_samples]
     all_lengths = np.concatenate(all_lengths, axis=0)[:total_num_samples]
 
-    if os.path.exists(out_path):
-        shutil.rmtree(out_path)
-    os.makedirs(out_path)
+    # if os.path.exists(out_path):
+    #     shutil.rmtree(out_path)
+    # os.makedirs(out_path)
 
-    npy_path = os.path.join(out_path, 'results.npy')
-    print(f"saving results file to [{npy_path}]")
-    np.save(npy_path,
-            {'motion': all_motions, 'text': all_text, 'lengths': all_lengths,
-             'num_samples': args.num_samples, 'num_repetitions': args.num_repetitions})
-    with open(npy_path.replace('.npy', '.txt'), 'w') as fw:
-        fw.write('\n'.join(all_text))
-    with open(npy_path.replace('.npy', '_len.txt'), 'w') as fw:
-        fw.write('\n'.join([str(l) for l in all_lengths]))
+    # npy_path = os.path.join(out_path, 'results.npy')
+    # npy_path = os.path.join(out_path, 'results', f'{caption.replace(" ", "_")}.npy')
+    
+    # print(f"saving results file to [{npy_path}, {motion_path}]")
+    # np.save(npy_path,
+    #         {'motion': all_motions, 'text': all_text, 'lengths': all_lengths,
+    #          'num_samples': args.num_samples, 'num_repetitions': args.num_repetitions})
+    
+    # with open(npy_path.replace('.npy', '.txt'), 'w') as fw:
+    #     fw.write('\n'.join(all_text))
+    # with open(npy_path.replace('.npy', '_len.txt'), 'w') as fw:
+    #     fw.write('\n'.join([str(l) for l in all_lengths]))
 
-    print(f"saving visualizations to [{out_path}]...")
+    viz_path = os.path.join(out_path, 'visualisations')
+    print(f"saving visualizations to [{viz_path}]...")
     skeleton = paramUtil.kit_kinematic_chain if args.dataset == 'kit' else paramUtil.t2m_kinematic_chain
 
     sample_files = []
@@ -184,14 +191,24 @@ def main():
             caption = all_text[rep_i*args.batch_size + sample_i]
             length = all_lengths[rep_i*args.batch_size + sample_i]
             motion = all_motions[rep_i*args.batch_size + sample_i].transpose(2, 0, 1)[:length]
-            save_file = sample_file_template.format(sample_i, rep_i)
+            
+            motion_path = os.path.join(out_path, 'motions', f'{caption.replace(" ", "_")}.npy')
+            print(f"saving motions to {motion_path}")
+            np.save(motion_path, motion)
+
+            # save_file = sample_file_template.format(sample_i, rep_i)
+            save_file = f'{caption.replace(" ", "_")}.gif' 
+            
+
             print(sample_print_template.format(caption, sample_i, rep_i, save_file))
-            animation_save_path = os.path.join(out_path, save_file)
-            plot_3d_motion(animation_save_path, skeleton, motion, dataset=args.dataset, title=caption, fps=fps)
+            animation_save_path = f'{viz_path}/{save_file}'
+            # animation_save_path = os.path.join(out_path, save_file)
+            # plot_3d_motion(animation_save_path, skeleton, motion, dataset=args.dataset, title=caption, fps=fps)
+            plot_3d_motion(animation_save_path, skeleton, motion, dataset=args.dataset, title="", fps=fps)
             # Credit for visualization: https://github.com/EricGuo5513/text-to-motion
             rep_files.append(animation_save_path)
 
-        sample_files = save_multiple_samples(args, out_path,
+        sample_files = save_multiple_samples(args, viz_path,
                                                row_print_template, all_print_template, row_file_template, all_file_template,
                                                caption, num_samples_in_out_file, rep_files, sample_files, sample_i)
 
@@ -224,17 +241,21 @@ def save_multiple_samples(args, out_path, row_print_template, all_print_template
 
 
 def construct_template_variables(unconstrained):
-    row_file_template = 'sample{:02d}.mp4'
-    all_file_template = 'samples_{:02d}_to_{:02d}.mp4'
+    # row_file_template = 'sample{:02d}.mp4'
+    # all_file_template = 'samples_{:02d}_to_{:02d}.mp4'
+    row_file_template = 'sample{:02d}.gif'
+    all_file_template = 'samples_{:02d}_to_{:02d}.gif'
     if unconstrained:
-        sample_file_template = 'row{:02d}_col{:02d}.mp4'
+        # sample_file_template = 'row{:02d}_col{:02d}.mp4'
+        sample_file_template = 'row{:02d}_col{:02d}.gif'
         sample_print_template = '[{} row #{:02d} column #{:02d} | -> {}]'
         row_file_template = row_file_template.replace('sample', 'row')
         row_print_template = '[{} row #{:02d} | all columns | -> {}]'
         all_file_template = all_file_template.replace('samples', 'rows')
         all_print_template = '[rows {:02d} to {:02d} | -> {}]'
     else:
-        sample_file_template = 'sample{:02d}_rep{:02d}.mp4'
+        # sample_file_template = 'sample{:02d}_rep{:02d}.mp4'
+        sample_file_template = 'sample{:02d}_rep{:02d}.gif'
         sample_print_template = '["{}" ({:02d}) | Rep #{:02d} | -> {}]'
         row_print_template = '[ "{}" ({:02d}) | all repetitions | -> {}]'
         all_print_template = '[samples {:02d} to {:02d} | all repetitions | -> {}]'
@@ -249,7 +270,7 @@ def load_dataset(args, max_frames, n_frames):
                               num_frames=max_frames,
                               split='test',
                               hml_mode='text_only')
-    if args.dataset in ['kit', 'humanml']:
+    if args.dataset in ['kit', 'humanml', 'swdance']:
         data.dataset.t2m_dataset.fixed_length = n_frames
     return data
 
