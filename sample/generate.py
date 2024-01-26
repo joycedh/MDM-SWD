@@ -30,13 +30,15 @@ def main():
     n_frames = min(max_frames, int(args.motion_length*fps))
     is_using_data = not any([args.input_text, args.text_prompt, args.action_file, args.action_name])
     dist_util.setup_dist(args.device)
+
     if out_path == '':
-        out_path = os.path.join(os.path.dirname(args.model_path),
+        out_path = os.path.join(os.path.dirname(args.model_path), 'samples',
                                 'samples_{}_{}_seed{}'.format(name, niter, args.seed))
         if args.text_prompt != '':
             out_path += '_' + args.text_prompt.replace(' ', '_').replace('.', '')
         elif args.input_text != '':
             out_path += '_' + os.path.basename(args.input_text).replace('.txt', '').replace(' ', '_').replace('.', '')
+    os.makedirs(out_path, exist_ok=True)
 
     # this block must be called BEFORE the dataset is loaded
     if args.text_prompt != '':
@@ -160,22 +162,23 @@ def main():
 
     # if os.path.exists(out_path):
     #     shutil.rmtree(out_path)
-    # os.makedirs(out_path)
+    os.makedirs(os.path.join(out_path, 'results'), exist_ok=True)
 
-    # npy_path = os.path.join(out_path, 'results.npy')
+    npy_path = os.path.join(out_path, 'results.npy')
     # npy_path = os.path.join(out_path, 'results', f'{caption.replace(" ", "_")}.npy')
     
-    # print(f"saving results file to [{npy_path}, {motion_path}]")
-    # np.save(npy_path,
-    #         {'motion': all_motions, 'text': all_text, 'lengths': all_lengths,
-    #          'num_samples': args.num_samples, 'num_repetitions': args.num_repetitions})
+    print(f"saving results file to [{npy_path}]")
+    np.save(npy_path,
+            {'motion': all_motions, 'text': all_text, 'lengths': all_lengths,
+             'num_samples': args.num_samples, 'num_repetitions': args.num_repetitions})
     
-    # with open(npy_path.replace('.npy', '.txt'), 'w') as fw:
-    #     fw.write('\n'.join(all_text))
-    # with open(npy_path.replace('.npy', '_len.txt'), 'w') as fw:
-    #     fw.write('\n'.join([str(l) for l in all_lengths]))
+    with open(npy_path.replace('.npy', '.txt'), 'w') as fw:
+        fw.write('\n'.join(all_text))
+    with open(npy_path.replace('.npy', '_len.txt'), 'w') as fw:
+        fw.write('\n'.join([str(l) for l in all_lengths]))
 
     viz_path = os.path.join(out_path, 'visualisations')
+    os.makedirs(viz_path, exist_ok=True)
     print(f"saving visualizations to [{viz_path}]...")
     skeleton = paramUtil.kit_kinematic_chain if args.dataset == 'kit' else paramUtil.t2m_kinematic_chain
 
@@ -192,17 +195,16 @@ def main():
             length = all_lengths[rep_i*args.batch_size + sample_i]
             motion = all_motions[rep_i*args.batch_size + sample_i].transpose(2, 0, 1)[:length]
             
+            os.makedirs(os.path.join(out_path, 'motions'), exist_ok=True)
             motion_path = os.path.join(out_path, 'motions', f'{caption.replace(" ", "_")}.npy')
             print(f"saving motions to {motion_path}")
             np.save(motion_path, motion)
 
-            # save_file = sample_file_template.format(sample_i, rep_i)
+            save_file = sample_file_template.format(sample_i, rep_i)
             save_file = f'{caption.replace(" ", "_")}.gif' 
-            
 
             print(sample_print_template.format(caption, sample_i, rep_i, save_file))
-            animation_save_path = f'{viz_path}/{save_file}'
-            # animation_save_path = os.path.join(out_path, save_file)
+            animation_save_path = os.path.join(viz_path, save_file)
             # plot_3d_motion(animation_save_path, skeleton, motion, dataset=args.dataset, title=caption, fps=fps)
             plot_3d_motion(animation_save_path, skeleton, motion, dataset=args.dataset, title="", fps=fps)
             # Credit for visualization: https://github.com/EricGuo5513/text-to-motion
@@ -268,7 +270,7 @@ def load_dataset(args, max_frames, n_frames):
     data = get_dataset_loader(name=args.dataset,
                               batch_size=args.batch_size,
                               num_frames=max_frames,
-                              split='test',
+                              split='val',
                               hml_mode='text_only')
     if args.dataset in ['kit', 'humanml', 'swdance']:
         data.dataset.t2m_dataset.fixed_length = n_frames
