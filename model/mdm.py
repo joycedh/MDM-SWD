@@ -5,13 +5,11 @@ import torch.nn.functional as F
 import clip
 from model.rotation2xyz import Rotation2xyz
 
-
-
 class MDM(nn.Module):
     def __init__(self, modeltype, njoints, nfeats, num_actions, translation, pose_rep, glob, glob_rot,
                  latent_dim=256, ff_size=1024, num_layers=8, num_heads=4, dropout=0.1,
                  ablation=None, activation="gelu", legacy=False, data_rep='rot6d', dataset='amass', clip_dim=512,
-                 arch='trans_enc', emb_trans_dec=False, clip_version=None, **kargs):
+                 arch='trans_enc', emb_trans_dec=False, clip_version=None, freeze_layers=False, **kargs):
         super().__init__()
 
         self.legacy = legacy
@@ -31,6 +29,8 @@ class MDM(nn.Module):
 
         self.ff_size = ff_size
         self.num_layers = num_layers
+        self.freeze_layers = freeze_layers
+        print(f'num_layers: {self.num_layers}, freeze_layers: {self.freeze_layers}')
         self.num_heads = num_heads
         self.dropout = dropout
 
@@ -48,11 +48,12 @@ class MDM(nn.Module):
         self.arch = arch
         self.gru_emb_dim = self.latent_dim if self.arch == 'gru' else 0
         self.input_process = InputProcess(self.data_rep, self.input_feats+self.gru_emb_dim, self.latent_dim)
+        # print(f'data rep {self.data_rep}, input feats {self.input_feats}  gru emb dim {self.gru_emb_dim},  latent dim {self.latent_dim}')
 
         self.sequence_pos_encoder = PositionalEncoding(self.latent_dim, self.dropout)
         self.emb_trans_dec = emb_trans_dec
 
-        if self.arch == 'trans_enc':
+        if self.arch == 'trans_enc' and not self.freeze_layers:
             print("TRANS_ENC init")
             seqTransEncoderLayer = nn.TransformerEncoderLayer(d_model=self.latent_dim,
                                                               nhead=self.num_heads,
@@ -62,6 +63,30 @@ class MDM(nn.Module):
 
             self.seqTransEncoder = nn.TransformerEncoder(seqTransEncoderLayer,
                                                          num_layers=self.num_layers)
+            
+        elif self.arch == 'trans_enc' and self.freeze_layers:   # inspired by ComMDM (MDM as prior paper)
+
+            # freeze all beginning layers 
+            self.freeze_block(self.input_process)
+            self.freeze_block(self.sequence_pos_encoder)
+
+            # For the transformer encoder layers (=8), freeze 0-8 layers
+            assert 0 < self.freeze_layers <= self.num_layers
+            print(f'Freezing until layer [{self.freeze_layers}]')
+            # del self.seqTransEncoder
+            seqTransEncoderLayer = nn.TransformerEncoderLayer(d_model=self.latent_dim,
+                                                            nhead=self.num_heads,
+                                                            dim_feedforward=self.ff_size,
+                                                            dropout=self.dropout,
+                                                            activation=self.activation)
+
+            self.seqTransEncoder_beginning = nn.TransformerEncoder(seqTransEncoderLayer,
+                                                            num_layers=self.freeze_layers)
+            self.seqTransEncoder_end = nn.TransformerEncoder(seqTransEncoderLayer,
+                                                            num_layers=self.num_layers - self.freeze_layers)
+            
+            self.freeze_block(self.seqTransEncoder_beginning)
+
         elif self.arch == 'trans_dec':
             print("TRANS_DEC init")
             seqTransDecoderLayer = nn.TransformerDecoderLayer(d_model=self.latent_dim,
@@ -94,6 +119,13 @@ class MDM(nn.Module):
                                             self.nfeats)
 
         self.rot2xyz = Rotation2xyz(device='cpu', dataset=self.dataset)
+
+        if self.freeze_layers:
+            self.freeze_block(self.embed_timestep)
+            # if 'text' in self.cond_mode:
+                # self.freeze_block(self.embed_text)
+            # self.freeze_block(self.output_process)
+
 
     def parameters_wo_clip(self):
         return [p for name, p in self.named_parameters() if not name.startswith('clip_model.')]
@@ -144,6 +176,7 @@ class MDM(nn.Module):
         timesteps: [batch_size] (int)
         """
         bs, njoints, nfeats, nframes = x.shape
+        # print("bs, njoints, nfeats, nframes", bs, njoints, nfeats, nframes)
         emb = self.embed_timestep(timesteps)  # [1, bs, d]
 
         force_mask = y.get('uncond', False)
@@ -161,14 +194,27 @@ class MDM(nn.Module):
             emb_gru = emb_gru.reshape(bs, self.latent_dim, 1, nframes)  #[bs, d, 1, #frames]
             x = torch.cat((x_reshaped, emb_gru), axis=1)  #[bs, d+joints*feat, 1, #frames]
 
+        # print('input process shape:', x.shape)
         x = self.input_process(x)
 
         if self.arch == 'trans_enc':
             # adding the timestep embed
             xseq = torch.cat((emb, x), axis=0)  # [seqlen+1, bs, d]
             xseq = self.sequence_pos_encoder(xseq)  # [seqlen+1, bs, d]
-            output = self.seqTransEncoder(xseq)[1:]  # , src_key_padding_mask=~maskseq)  # [seqlen, bs, d]
 
+            if self.freeze_layers:
+                # inspired by ComMDM form MDM as prior paper 
+                mid = self.seqTransEncoder_beginning(xseq)
+
+                if self.freeze_layers < self.num_layers:
+                    output = self.seqTransEncoder_end(mid)[1:]
+                elif self.freeze_layers == self.num_layers:
+                    output = mid[1:]
+            
+            else:
+                output = self.seqTransEncoder(xseq)[1:]  # , src_key_padding_mask=~maskseq)  # [seqlen, bs, d]
+
+            
         elif self.arch == 'trans_dec':
             if self.emb_trans_dec:
                 xseq = torch.cat((emb, x), axis=0)
@@ -196,6 +242,11 @@ class MDM(nn.Module):
     def train(self, *args, **kwargs):
         super().train(*args, **kwargs)
         self.rot2xyz.smpl_model.train(*args, **kwargs)
+    
+    def freeze_block(self, block):
+        block.eval()
+        for p in block.parameters():
+            p.requires_grad = False
 
 
 class PositionalEncoding(nn.Module):
@@ -250,6 +301,7 @@ class InputProcess(nn.Module):
         x = x.permute((3, 0, 1, 2)).reshape(nframes, bs, njoints*nfeats)
 
         if self.data_rep in ['rot6d', 'xyz', 'hml_vec']:
+            # print('shape, data-rep, latent dim, input feats : ', x.shape, self.data_rep, self.latent_dim, self.input_feats)
             x = self.poseEmbedding(x)  # [seqlen, bs, d]
             return x
         elif self.data_rep == 'rot_vel':

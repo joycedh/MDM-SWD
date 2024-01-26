@@ -234,7 +234,10 @@ class Text2MotionDatasetV2(data.Dataset):
                         text_dict = {}
                         line_split = line.strip().split('#')
                         caption = line_split[0]
-                        tokens = line_split[1].split(' ')
+                        if line_split[1] == ' /X':
+                            tokens = [' /X']
+                        else:
+                            tokens = line_split[1].split(' ')
                         f_tag = float(line_split[2])
                         to_tag = float(line_split[3])
                         f_tag = 0.0 if np.isnan(f_tag) else f_tag
@@ -300,6 +303,7 @@ class Text2MotionDatasetV2(data.Dataset):
         # Randomly select a caption
         text_data = random.choice(text_list)
         caption, tokens = text_data['caption'], text_data['tokens']
+        # print(f'cap = {caption}, tok= {tokens}')
 
         if len(tokens) < self.opt.max_text_len:
             # pad with "unk"
@@ -779,3 +783,8 @@ class HumanML3D(data.Dataset):
 class KIT(HumanML3D):
     def __init__(self, mode, datapath='./dataset/kit_opt.txt', split="train", **kwargs):
         super(KIT, self).__init__(mode, datapath, split, **kwargs)
+
+# A wrapper class for t2m original dataset for MDM purposes
+class SWDance(HumanML3D):
+    def __init__(self, mode, datapath='./dataset/swdance_opt.txt', split="train", **kwargs):
+        super(SWDance, self).__init__(mode, datapath, split, **kwargs)
