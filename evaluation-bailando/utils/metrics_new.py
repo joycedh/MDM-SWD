@@ -1,7 +1,7 @@
 import numpy as np
 import pickle 
-from features.kinetic import extract_kinetic_features
-from features.manual_new import extract_manual_features
+from utils.features.kinetic import extract_kinetic_features
+from utils.features.manual_new import extract_manual_features
 from scipy import linalg
 
 # kinetic, manual
@@ -182,7 +182,6 @@ if __name__ == '__main__':
 
     gt_root = '/home/s3007294/motion-diffusion-model/evaluation-bailando/eval-data/gt-features'
     pred_root = '/home/s3007294/motion-diffusion-model/evaluation-bailando/eval-data/freeze6'
-    # pred_root = '/home/s3007294/motion-diffusion-model/evaluation-bailando/eval-data/val-just-texts'
     print('Calculating and saving features')
     calc_and_save_feats(gt_root)
     calc_and_save_feats(pred_root)
