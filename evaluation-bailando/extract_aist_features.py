@@ -14,17 +14,12 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     '--save_dir',
     type=str,
-    # default='eval-data/eval-features/',
-    default='eval-data/freeze0',
-    # default='eval-data/gt-features/',
+    default='eval-data/eval-features/',
     help='output local dictionary that stores features.')
 parser.add_argument(
     '--motion_dir',
     type=str,
-    # default="eval-data/model-output",
-    # default="eval-data/val-gt",
-    default="/home/s3007294/motion-diffusion-model/save/my_swdance/samples/freeze0_validation/motions",
-    # default="/home/s3007294/motion-diffusion-model/save/my_swdance/samples/swdance_val_just_texts/motions",
+    default="eval-data/model-output",
     help="Directory with ground motions to process"
 )
 FLAGS = parser.parse_args()
