@@ -27,7 +27,7 @@ echo "Generating for file: $textfile and model: $model"
 python -m sample.generate \
     --model_path $model\
     --input_text $textfile \
-    --num_repetitions 1 \
+    # --num_repetitions 1 \
     --output_dir $output_dir \
     # --freeze_layers 3 \
     # --motion_length 2 # in seconds
