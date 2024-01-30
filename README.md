@@ -58,7 +58,7 @@ Based on [MDM](https://github.com/GuyTevet/motion-diffusion-model/)
   <summary><b>Generate from test set prompts</b></summary>
 
 ```shell
-python -m sample.generate --model_path ./save/humanml_trans_enc_512/model000200000.pt --num_samples 10 --num_repetitions 3
+python -m sample.generate --model_path ./save/swdance/model000500000.pt --num_samples 10 --num_repetitions 3
 ```
 </details> 
 
@@ -66,7 +66,7 @@ python -m sample.generate --model_path ./save/humanml_trans_enc_512/model0002000
   <summary><b>Generate from your text file</b></summary>
 
 ```shell
-python -m sample.generate --model_path ./save/humanml_trans_enc_512/model000200000.pt --input_text ./assets/example_text_prompts.txt
+python -m sample.generate --model_path ./save/swdance/model000500000.pt --input_text ./sample/val_texts.txt
 ```
 </details> 
 
@@ -75,7 +75,7 @@ python -m sample.generate --model_path ./save/humanml_trans_enc_512/model0002000
   <summary><b>Generate from a single prompt.</b></summary>
 
 ```shell
-python -m sample.generate --model_path ./save/humanml_trans_enc_512/model000200000.pt --text_prompt "the person walked forward and is picking up his toolbox."
+python -m sample.generate --model_path ./save/swdance/model000500000.pt --text_prompt "the person walked forward and is picking up his toolbox."
 ```
 </details> 
 
@@ -83,6 +83,7 @@ python -m sample.generate --model_path ./save/humanml_trans_enc_512/model0002000
 * `--device` id.
 * `--seed` to sample different prompts.
 * `--motion_length` (text-to-motion only) in seconds (maximum is 9.8[sec]).
+* `--freeze_layers` to specify the amount of frozen layers in your model. 
 
 **Running those will get you:**
 
@@ -102,6 +103,8 @@ They also allowds for motion editing, see their page for more details on:
 ```shell
 python -m train.train_mdm --save_dir save/my_swdance --dataset swdance
 ```
+
+Add `--freeze_layers` to specify how many layers of the checkpoint should be frozen during training. 
 
 ## Evaluation 
 
