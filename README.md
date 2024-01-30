@@ -1,36 +1,27 @@
-# SWDance: Transfer learning $MDM$ to Generate Choreography from Spoken Word Input.  
+# SWDance: Transfer learning MDM to Generate Choreography from Spoken Word Input.  
 
-The official PyTorch implementation of SWDance. 
-*TODO: preview picture and visualisations.
+![frontcover](https://github.com/joycedh/MDM-SWDance/assets/33030971/3299eb52-5195-46f2-bc7e-9f768dfab909)
 
+Submitted to the [9th International Conference on Movement and Computing](https://moco24.movementcomputing.org/). 
 
-## Getting started
+## Preparation
 
-This code is based on MDM (TODO insert link). Set up is according to their setup. 
+<details>
+  <summary><b>Environment</b></summary>
 
-* Python 3.7
-* conda3 or miniconda3
+We ran it on:
+* Python 3.10
 * CUDA capable GPU (one is enough)
 
-### 1. Setup environment
-
-Install ffmpeg (if not already installed):
-
-```shell
-sudo apt update
-sudo apt install ffmpeg
+```bash
+pip install -r requirements.txt
 ```
-For windows use [this](https://www.geeksforgeeks.org/how-to-install-ffmpeg-on-windows/) instead.
+</details>
 
-Setup conda env:
-```shell
-conda env create -f environment.yml
-conda activate mdm
-python -m spacy download en_core_web_sm
-pip install git+https://github.com/openai/CLIP.git
-```
+<details>
+  <summary><b>Dependencies</b></summary>
 
-Download dependencies:
+Prepare the following dependencies according to [MDM](https://github.com/GuyTevet/motion-diffusion-model/)
 
 ```bash
 bash prepare/download_smpl_files.sh
@@ -38,34 +29,55 @@ bash prepare/download_glove.sh
 bash prepare/download_t2m_evaluators.sh
 ```
 
-### 2. Get data
+</details>
 
-Download [the SWDance dataset](https://drive.google.com/uc?export=download&id=1xNC1PBAMuCXSrUQxsm66oLdrHDNOLxi7 ), then unzip and place it in `./dataset/`. 
+## Dataset
 
-### 3. SWDance checkpoint
+<details>
+  <summary><b>The SWDance dataset</b></summary>
 
-Download the [SWDance checkpoint]( https://drive.google.com/uc?export=download&id=1lAEDeSWyuvWWCMjJMXC6tDyp25tN0E8S), then unzip and place them in `./save/`. 
+* Download the dataset files [here](https://drive.google.com/uc?export=download&id=1xNC1PBAMuCXSrUQxsm66oLdrHDNOLxi7 ), then unzip and place it in `./dataset/`. 
+* Download the [SWDance checkpoint](https://drive.google.com/uc?export=download&id=1-NGpCRrBECuS6-6puxuSjYUmIhiRY-C7), then unzip and place it in `./save/`. 
+</details>
+
+<details>
+  <summary><b>Your own dataset</b></summary>
+
+Create your own text-to-dance dataset from a YouTube playlist, according to the instructions in `./dataset/swdance_dataset_pipeline.ipynb`. Place it in `./dataset/`, and make sure to also create and edit the correct `_opt.txt` files for it. 
+
+</details> 
+
+Make sure to run `train-val-split.ipynb` for correct train/val splitting of the dataset.
 
 
 ## Motion Synthesis
 
-### Generate from test set prompts
+Based on [MDM](https://github.com/GuyTevet/motion-diffusion-model/)
+
+<details>
+  <summary><b>Generate from test set prompts</b></summary>
 
 ```shell
 python -m sample.generate --model_path ./save/humanml_trans_enc_512/model000200000.pt --num_samples 10 --num_repetitions 3
 ```
+</details> 
 
-### Generate from your text file
+<details>
+  <summary><b>Generate from your text file</b></summary>
 
 ```shell
 python -m sample.generate --model_path ./save/humanml_trans_enc_512/model000200000.pt --input_text ./assets/example_text_prompts.txt
 ```
+</details> 
 
-### Generate a single prompt
+
+<details>
+  <summary><b>Generate from a single prompt.</b></summary>
 
 ```shell
 python -m sample.generate --model_path ./save/humanml_trans_enc_512/model000200000.pt --text_prompt "the person walked forward and is picking up his toolbox."
 ```
+</details> 
 
 **You may also define:**
 * `--device` id.
@@ -74,17 +86,16 @@ python -m sample.generate --model_path ./save/humanml_trans_enc_512/model0002000
 
 **Running those will get you:**
 
-* `results.npy` file with text prompts and xyz positions of the generated animation
-* `sample##_rep##.mp4` - a stick figure animation for each generated motion.
+* `motions/prompt_title.npy` file with text prompts and xyz positions of the generated animation
+* `prompt_title.gif` - a stick figure animation for each generated motion.
 
-It will look something like this:
+It will look something like the above banner. 
 
-![example](assets/example_stick_fig.gif)
 
-You can stop here, or render the SMPL mesh using MDM description.
-MDM also allowds for motion editing, see their page for more details:
+You can stop here, or render the SMPL mesh using a description provided in [MDM](https://github.com/GuyTevet/motion-diffusion-model/).
+They also allowds for motion editing, see their page for more details on:
 -  Unconditioned editin
--  Text conditioned editing
+-  Text conditioned editing 
 
 ## Training
 
@@ -92,12 +103,15 @@ MDM also allowds for motion editing, see their page for more details:
 python -m train.train_mdm --save_dir save/my_swdance --dataset swdance
 ```
 
-## Evaluation (TODO)
+## Evaluation 
+
+Evaluation is based on [Bailando](https://github.com/lisiyao21/Bailando). 
+To run evaluation, see: `evaluation-bailando/evaluation_metrics.ipynb`.
 
 
 ## Acknowledgments
 
-This code is based on Motion Diffusion Model (TODO: link!). 
+As this code is based on [MDM](https://github.com/GuyTevet/motion-diffusion-model/) and [Bailando](https://github.com/lisiyao21/Bailando), I would like to thank the creators of these repositories for their great minds and amazing work. 
 
 ## License
 This code is distributed under an [MIT LICENSE](LICENSE).
