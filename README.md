@@ -2,7 +2,7 @@
 
 ![frontcover](https://github.com/joycedh/MDM-SWDance/assets/33030971/3299eb52-5195-46f2-bc7e-9f768dfab909)
 
-Submitted to the [9th International Conference on Movement and Computing](https://moco24.movementcomputing.org/). 
+Short paper accepted at the [9th International Conference on Movement and Computing](https://moco24.movementcomputing.org/). 
 
 ## Preparation
 
